@@ -7,8 +7,7 @@ import (
 )
 
 type RequestHeader interface {
-	MarshalBinary() []byte
-	UnmarshalBinary(*bytes.Reader)
+	Write(io.Writer) error
 }
 
 type RequestHeaderV1 struct {
@@ -22,16 +21,30 @@ type RequestHeaderV2 struct {
 	TaggedFields      TaggedFields   `desc:"_tagged_fields"`
 }
 
-func (rh *RequestHeaderV2) MarshalBinary() []byte {
+func (rh *RequestHeaderV2) Write(w io.Writer) error {
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.BigEndian, rh.RequestAPIKey)
 	binary.Write(&buf, binary.BigEndian, rh.RequestAPIVersion)
 	binary.Write(&buf, binary.BigEndian, rh.CorrelationID)
-	rh.ClientID.Write(&buf)
-	rh.TaggedFields.Write(&buf)
-	return buf.Bytes()
+	err := rh.ClientID.Write(&buf)
+	if err != nil {
+		return err
+	}
+	err = rh.TaggedFields.Write(&buf)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(buf.Bytes())
+	return err
 }
-func (rh *RequestHeaderV2) UnmarshalBinary(buf *bytes.Reader) {
+
+func ParseRequestHeader(r *bytes.Reader) RequestHeader {
+	rh := ParseRequestHeaderV2(r)
+	return rh
+}
+
+func ParseRequestHeaderV2(buf *bytes.Reader) *RequestHeaderV2 {
+	rh := RequestHeaderV2{}
 	binary.Read(buf, binary.BigEndian, &rh.RequestAPIKey)
 	binary.Read(buf, binary.BigEndian, &rh.RequestAPIVersion)
 	binary.Read(buf, binary.BigEndian, &rh.CorrelationID)
@@ -45,7 +58,7 @@ func (rh *RequestHeaderV2) UnmarshalBinary(buf *bytes.Reader) {
 		log.Errorf("Errro: %v\n", err)
 	}
 	rh.TaggedFields = *tfs
-
+	return &rh
 }
 
 type Request struct {
@@ -57,7 +70,7 @@ type Request struct {
 func MarshallRequest(r Request) []byte {
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.BigEndian, r.MessageSize)
-	binary.Write(&buf, binary.BigEndian, r.Header.MarshalBinary())
+	r.Header.Write(&buf)
 	binary.Write(&buf, binary.BigEndian, r.Data)
 	return buf.Bytes()
 }
@@ -66,7 +79,7 @@ func UnmarshallRequest(b []byte) (Request, error) {
 	req := Request{}
 	req.Header = &RequestHeaderV2{}
 	binary.Read(buf, binary.BigEndian, &req.MessageSize)
-	req.Header.UnmarshalBinary(buf)
+	req.Header = ParseRequestHeader(buf)
 	req.Data, _ = io.ReadAll(buf)
 	return req, nil
 }

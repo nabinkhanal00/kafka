@@ -43,9 +43,11 @@ func handleConnection(c net.Conn) {
 
 	request, _ := UnmarshallRequest(buffer)
 	response := Response{
-		MessageSize: 4,
 		Header: &ResponseHeaderV0{
 			CorrelationID: (request.Header).(*RequestHeaderV2).CorrelationID,
+		},
+		Body: &APIVersionsResponseV3{
+			ErrorCode: UNSUPPORTED_VERSION,
 		},
 	}
 	n, err = conn.Write(MarshallResponse(response))
