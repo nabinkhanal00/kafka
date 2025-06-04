@@ -13,32 +13,32 @@ type NullableString struct {
 }
 
 func ParseNullableString(r *bytes.Reader) (*NullableString, error) {
-	ns := NullableString{}
-	nsLengthBuf := make([]byte, 2)
-	binary.Read(r, binary.BigEndian, nsLengthBuf)
-	ns.Length = int16(binary.BigEndian.Uint16(nsLengthBuf))
-	if ns.Length != -1 {
-		characters := make([]byte, ns.Length)
-		n, err := r.Read(characters)
-		if err != nil {
-			log.Errorf("Unable to read: %v\n", err)
-		}
-		if n != int(ns.Length) {
-			log.Errorf("Invalid no of characters: Expected :%d Got: %d\n", ns.Length, n)
+	var length int16
+	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
+		return nil, fmt.Errorf("unable to read nullable string length: %w", err)
+	}
+	ns := NullableString{Length: length}
+	if length != -1 {
+		characters := make([]byte, length)
+		if n, err := io.ReadFull(r, characters); err != nil {
+			return nil, fmt.Errorf("unable to read nullable string data: %w", err)
+		} else if n != int(length) {
+			return nil, fmt.Errorf("invalid number of characters: expected %d, got %d", length, n)
 		}
 		ns.Data = string(characters)
 	}
 	return &ns, nil
 }
+
 func (ns *NullableString) Write(w io.Writer) error {
-	nsLengthBuf := make([]byte, 2)
-	binary.BigEndian.PutUint16(nsLengthBuf, uint16(ns.Length))
-	_, err := w.Write(nsLengthBuf)
-	if err != nil {
+	if err := binary.Write(w, binary.BigEndian, ns.Length); err != nil {
 		return err
 	}
-	_, err = w.Write([]byte(ns.Data))
-	return err
+	if ns.Length > 0 {
+		_, err := w.Write([]byte(ns.Data))
+		return err
+	}
+	return nil
 }
 
 // TaggedField represents a single tagged field (tag ID + value)

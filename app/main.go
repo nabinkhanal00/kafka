@@ -22,40 +22,49 @@ func main() {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			log.Errorf("Could not accept connection.\n")
-		} else {
-			log.Infof("Accepted Connection from %s\n", conn.RemoteAddr().String())
+			log.Errorf("Could not accept connection: %v", err)
+			continue
 		}
+		log.Infof("Accepted Connection from %s", conn.RemoteAddr().String())
 		go handleConnection(conn)
 	}
 }
 
 func handleConnection(c net.Conn) {
+	defer c.Close()
 	buffer := make([]byte, BUFFER_SIZE)
-	connectionString := c.RemoteAddr().String()
 	conn := bufio.NewReadWriter(bufio.NewReader(c), bufio.NewWriter(c))
 	n, err := conn.Read(buffer)
 	if err != nil {
-		log.Errorf("Could not read from %s\n", connectionString)
-	} else {
-		log.Infof("Read %d data from %s\n", n, connectionString)
+		log.Errorf("Could not read from %s: %v", c.RemoteAddr().String(), err)
+		return
 	}
+	log.Infof("Read %d bytes from %s", n, c.RemoteAddr().String())
 
-	request, _ := UnmarshallRequest(buffer)
+	request, err := UnmarshallRequest(buffer[:n])
+	if err != nil {
+		log.Errorf("Failed to parse request: %v", err)
+		return
+	}
+	rh, ok := request.Header.(*RequestHeaderV2)
+	if !ok {
+		log.Errorf("Invalid request header type")
+		return
+	}
 	response := Response{
 		Header: &ResponseHeaderV0{
-			CorrelationID: (request.Header).(*RequestHeaderV2).CorrelationID,
+			CorrelationID: rh.CorrelationID,
 		},
 		Body: &APIVersionsResponseV3{
 			ErrorCode: UNSUPPORTED_VERSION,
 		},
 	}
-	n, err = conn.Write(MarshallResponse(response))
+	respBytes := MarshallResponse(response)
+	n, err = conn.Write(respBytes)
 	if err != nil {
-		log.Errorf("Could not write to %s\n", connectionString)
-	} else {
-		log.Infof("Wrote %d data to %s\n", n, connectionString)
+		log.Errorf("Could not write to %s: %v", c.RemoteAddr().String(), err)
+		return
 	}
+	log.Infof("Wrote %d bytes to %s", n, c.RemoteAddr().String())
 	conn.Flush()
-	c.Close()
 }

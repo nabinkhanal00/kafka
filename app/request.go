@@ -3,14 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 )
 
 type RequestHeader interface {
 	Write(io.Writer) error
-}
-
-type RequestHeaderV1 struct {
 }
 
 type RequestHeaderV2 struct {
@@ -22,43 +20,47 @@ type RequestHeaderV2 struct {
 }
 
 func (rh *RequestHeaderV2) Write(w io.Writer) error {
-	var buf bytes.Buffer
-	binary.Write(&buf, binary.BigEndian, rh.RequestAPIKey)
-	binary.Write(&buf, binary.BigEndian, rh.RequestAPIVersion)
-	binary.Write(&buf, binary.BigEndian, rh.CorrelationID)
-	err := rh.ClientID.Write(&buf)
-	if err != nil {
+	if err := binary.Write(w, binary.BigEndian, rh.RequestAPIKey); err != nil {
 		return err
 	}
-	err = rh.TaggedFields.Write(&buf)
-	if err != nil {
+	if err := binary.Write(w, binary.BigEndian, rh.RequestAPIVersion); err != nil {
 		return err
 	}
-	_, err = w.Write(buf.Bytes())
-	return err
+	if err := binary.Write(w, binary.BigEndian, rh.CorrelationID); err != nil {
+		return err
+	}
+	if err := rh.ClientID.Write(w); err != nil {
+		return err
+	}
+	return rh.TaggedFields.Write(w)
 }
 
-func ParseRequestHeader(r *bytes.Reader) RequestHeader {
-	rh := ParseRequestHeaderV2(r)
-	return rh
+func ParseRequestHeader(r *bytes.Reader) (RequestHeader, error) {
+	return ParseRequestHeaderV2(r)
 }
 
-func ParseRequestHeaderV2(buf *bytes.Reader) *RequestHeaderV2 {
-	rh := RequestHeaderV2{}
-	binary.Read(buf, binary.BigEndian, &rh.RequestAPIKey)
-	binary.Read(buf, binary.BigEndian, &rh.RequestAPIVersion)
-	binary.Read(buf, binary.BigEndian, &rh.CorrelationID)
-	ci, err := ParseNullableString(buf)
+func ParseRequestHeaderV2(r *bytes.Reader) (*RequestHeaderV2, error) {
+	var rh RequestHeaderV2
+	if err := binary.Read(r, binary.BigEndian, &rh.RequestAPIKey); err != nil {
+		return nil, fmt.Errorf("cannot read api key: %w", err)
+	}
+	if err := binary.Read(r, binary.BigEndian, &rh.RequestAPIVersion); err != nil {
+		return nil, fmt.Errorf("cannot read api version: %w", err)
+	}
+	if err := binary.Read(r, binary.BigEndian, &rh.CorrelationID); err != nil {
+		return nil, fmt.Errorf("cannot read correlation id: %w", err)
+	}
+	ci, err := ParseNullableString(r)
 	if err != nil {
-		log.Errorf("Cannot parse nullable string:: %v\n", err)
+		return nil, fmt.Errorf("cannot parse nullable string: %w", err)
 	}
 	rh.ClientID = *ci
-	tfs, err := ParseTaggedFields(buf)
+	tfs, err := ParseTaggedFields(r)
 	if err != nil {
-		log.Errorf("Errro: %v\n", err)
+		return nil, fmt.Errorf("cannot parse tagged fields: %w", err)
 	}
 	rh.TaggedFields = *tfs
-	return &rh
+	return &rh, nil
 }
 
 type Request struct {
@@ -71,15 +73,21 @@ func MarshallRequest(r Request) []byte {
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.BigEndian, r.MessageSize)
 	r.Header.Write(&buf)
-	binary.Write(&buf, binary.BigEndian, r.Data)
+	buf.Write(r.Data)
 	return buf.Bytes()
 }
+
 func UnmarshallRequest(b []byte) (Request, error) {
 	buf := bytes.NewReader(b)
-	req := Request{}
-	req.Header = &RequestHeaderV2{}
-	binary.Read(buf, binary.BigEndian, &req.MessageSize)
-	req.Header = ParseRequestHeader(buf)
-	req.Data, _ = io.ReadAll(buf)
-	return req, nil
+	var req Request
+	if err := binary.Read(buf, binary.BigEndian, &req.MessageSize); err != nil {
+		return req, err
+	}
+	header, err := ParseRequestHeader(buf)
+	if err != nil {
+		return req, err
+	}
+	req.Header = header
+	req.Data, err = io.ReadAll(buf)
+	return req, err
 }
