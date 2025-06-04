@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"os"
 
@@ -17,7 +16,7 @@ func main() {
 	log.Out = os.Stdout
 	l, err := net.Listen("tcp", "0.0.0.0:9092")
 	if err != nil {
-		fmt.Println("Failed to bind to port 9092")
+		log.Warnln("Failed to bind to port 9092")
 		os.Exit(1)
 	}
 	for {
@@ -41,10 +40,12 @@ func handleConnection(c net.Conn) {
 	} else {
 		log.Infof("Read %d data from %s\n", n, connectionString)
 	}
+
+	request, _ := UnmarshallRequest(buffer)
 	response := Response{
 		MessageSize: 4,
 		Header: &ResponseHeaderV0{
-			CorrelationID: 7,
+			CorrelationID: (request.Header).(*RequestHeaderV2).CorrelationID,
 		},
 	}
 	n, err = conn.Write(MarshallResponse(response))
