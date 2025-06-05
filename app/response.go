@@ -52,7 +52,7 @@ func (r *APIVersionsResponseV4) Write(w io.Writer) error {
 	if err := binary.Write(w, binary.BigEndian, r.ErrorCode); err != nil {
 		return err
 	}
-	binary.Write(w, binary.BigEndian, int32(len(r.APIKeys)))
+	binary.Write(w, binary.BigEndian, uint8(len(r.APIKeys)+1))
 	for _, apikey := range r.APIKeys {
 		binary.Write(w, binary.BigEndian, apikey.Key)
 		binary.Write(w, binary.BigEndian, apikey.MinVersion)
