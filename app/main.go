@@ -56,7 +56,7 @@ func handleConnection(c net.Conn) {
 			CorrelationID: rh.CorrelationID,
 		},
 		Body: &APIVersionsResponseV4{
-			ErrorCode: NONE,
+			ErrorCode: UNSUPPORTED_VERSION,
 			APIKeys: []APIKey{
 				{
 					Key:        18,
