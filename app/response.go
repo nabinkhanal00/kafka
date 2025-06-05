@@ -36,9 +36,10 @@ type Response struct {
 	Body        ResponseBody   `desc:"data"`
 }
 type APIVersionsResponseV4 struct {
-	ErrorCode      int16    `desc:"error_code"`
-	APIKeys        []APIKey `desc:"api_keys"`
-	ThrottleTimeMS int32    `desc:"throttle_time_ms"`
+	ErrorCode      int16        `desc:"error_code"`
+	APIKeys        []APIKey     `desc:"api_keys"`
+	ThrottleTimeMS int32        `desc:"throttle_time_ms"`
+	TaggedFields   TaggedFields `desc:"_tagged_fields"`
 }
 type APIKey struct {
 	Key          int16        `desc:"api_key"`
@@ -59,6 +60,7 @@ func (r *APIVersionsResponseV4) Write(w io.Writer) error {
 		apikey.TaggedFields.Write(w)
 	}
 	binary.Write(w, binary.BigEndian, r.ThrottleTimeMS)
+	r.TaggedFields.Write(w)
 	return nil
 }
 
