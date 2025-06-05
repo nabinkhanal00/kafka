@@ -34,48 +34,51 @@ func handleConnection(c net.Conn) {
 	defer c.Close()
 	buffer := make([]byte, BUFFER_SIZE)
 	conn := bufio.NewReadWriter(bufio.NewReader(c), bufio.NewWriter(c))
-	n, err := conn.Read(buffer)
-	if err != nil {
-		log.Errorf("Could not read from %s: %v", c.RemoteAddr().String(), err)
-		return
-	}
-	log.Infof("Read %d bytes from %s", n, c.RemoteAddr().String())
+	for {
+		n, err := conn.Read(buffer)
+		log.Infoln("Read second set of data")
+		if err != nil {
+			log.Errorf("Could not read from %s: %v", c.RemoteAddr().String(), err)
+			return
+		}
+		log.Infof("Read %d bytes from %s", n, c.RemoteAddr().String())
 
-	request, err := UnmarshallRequest(buffer[:n])
-	if err != nil {
-		log.Errorf("Failed to parse request: %v", err)
-		return
-	}
-	rh, ok := request.Header.(*RequestHeaderV2)
-	if !ok {
-		log.Errorf("Invalid request header type")
-		return
-	}
-	errorCode := NONE
-	if rh.RequestAPIVersion < 0 || rh.RequestAPIVersion > 4 {
-		errorCode = UNSUPPORTED_VERSION
-	}
-	response := Response{
-		Header: &ResponseHeaderV0{
-			CorrelationID: rh.CorrelationID,
-		},
-		Body: &APIVersionsResponseV4{
-			ErrorCode: errorCode,
-			APIKeys: []APIKey{
-				{
-					Key:        18,
-					MaxVersion: 4,
-					MinVersion: 0,
+		request, err := UnmarshallRequest(buffer[:n])
+		if err != nil {
+			log.Errorf("Failed to parse request: %v", err)
+			return
+		}
+		rh, ok := request.Header.(*RequestHeaderV2)
+		if !ok {
+			log.Errorf("Invalid request header type")
+			return
+		}
+		errorCode := NONE
+		if rh.RequestAPIVersion < 0 || rh.RequestAPIVersion > 4 {
+			errorCode = UNSUPPORTED_VERSION
+		}
+		response := Response{
+			Header: &ResponseHeaderV0{
+				CorrelationID: rh.CorrelationID,
+			},
+			Body: &APIVersionsResponseV4{
+				ErrorCode: errorCode,
+				APIKeys: []APIKey{
+					{
+						Key:        18,
+						MaxVersion: 4,
+						MinVersion: 0,
+					},
 				},
 			},
-		},
+		}
+		respBytes := MarshallResponse(response)
+		n, err = conn.Write(respBytes)
+		if err != nil {
+			log.Errorf("Could not write to %s: %v", c.RemoteAddr().String(), err)
+			return
+		}
+		log.Infof("Wrote %d bytes to %s", n, c.RemoteAddr().String())
+		conn.Flush()
 	}
-	respBytes := MarshallResponse(response)
-	n, err = conn.Write(respBytes)
-	if err != nil {
-		log.Errorf("Could not write to %s: %v", c.RemoteAddr().String(), err)
-		return
-	}
-	log.Infof("Wrote %d bytes to %s", n, c.RemoteAddr().String())
-	conn.Flush()
 }
