@@ -51,12 +51,16 @@ func handleConnection(c net.Conn) {
 		log.Errorf("Invalid request header type")
 		return
 	}
+	errorCode := NONE
+	if rh.RequestAPIVersion < 0 || rh.RequestAPIVersion > 4 {
+		errorCode = UNSUPPORTED_VERSION
+	}
 	response := Response{
 		Header: &ResponseHeaderV0{
 			CorrelationID: rh.CorrelationID,
 		},
 		Body: &APIVersionsResponseV4{
-			ErrorCode: UNSUPPORTED_VERSION,
+			ErrorCode: errorCode,
 			APIKeys: []APIKey{
 				{
 					Key:        18,
