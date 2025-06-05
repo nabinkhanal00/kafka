@@ -10,6 +10,9 @@ import (
 type RequestHeader interface {
 	Write(io.Writer) error
 }
+type RequestBody interface {
+	Write(io.Writer) error
+}
 
 type RequestHeaderV2 struct {
 	RequestAPIKey     int16          `desc:"request_api_key"`
@@ -66,15 +69,52 @@ func ParseRequestHeaderV2(r *bytes.Reader) (*RequestHeaderV2, error) {
 type Request struct {
 	MessageSize int32         `desc:"message_size"`
 	Header      RequestHeader `desc:"request_header"`
-	Data        []byte        `desc:"data"`
+	Body        RequestBody   `desc:"data"`
 }
 
 func MarshallRequest(r Request) []byte {
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.BigEndian, r.MessageSize)
 	r.Header.Write(&buf)
-	buf.Write(r.Data)
+	r.Body.Write(&buf)
 	return buf.Bytes()
+}
+
+type APIVersionsRequestV4 struct {
+	ClientSoftwareName    CompactString `desc:"client_software_name"`
+	ClientSoftwareVersion CompactString `desc:"client_software_version"`
+	TaggedFields          TaggedFields  `desc:"_tagged_fields"`
+}
+
+func (r *APIVersionsRequestV4) Write(w io.Writer) error {
+	if err := r.ClientSoftwareName.Write(w); err != nil {
+		return err
+	}
+	if err := r.ClientSoftwareVersion.Write(w); err != nil {
+		return err
+	}
+	return r.TaggedFields.Write(w)
+}
+func ParseAPIVersionsRequestV4(r *bytes.Reader) (*APIVersionsRequestV4, error) {
+	clientSoftwareName, err := ParseCompactString(r)
+	if err != nil {
+		return nil, err
+	}
+	clientSoftwareVersion, err := ParseCompactString(r)
+	if err != nil {
+		return nil, err
+	}
+	taggedFields, err := ParseTaggedFields(r)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &APIVersionsRequestV4{
+		ClientSoftwareName:    *clientSoftwareName,
+		ClientSoftwareVersion: *clientSoftwareVersion,
+		TaggedFields:          *taggedFields,
+	}, nil
 }
 
 func UnmarshallRequest(b []byte) (Request, error) {
@@ -88,6 +128,10 @@ func UnmarshallRequest(b []byte) (Request, error) {
 		return req, err
 	}
 	req.Header = header
-	req.Data, err = io.ReadAll(buf)
+	req.Body, err = ParseRequestBody(buf)
 	return req, err
+}
+
+func ParseRequestBody(r *bytes.Reader) (RequestBody, error) {
+	return ParseAPIVersionsRequestV4(r)
 }

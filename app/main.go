@@ -55,8 +55,15 @@ func handleConnection(c net.Conn) {
 		Header: &ResponseHeaderV0{
 			CorrelationID: rh.CorrelationID,
 		},
-		Body: &APIVersionsResponseV3{
+		Body: &APIVersionsResponseV4{
 			ErrorCode: UNSUPPORTED_VERSION,
+			APIKeys: []APIKey{
+				{
+					Key:        18,
+					MaxVersion: 4,
+					MinVersion: 0,
+				},
+			},
 		},
 	}
 	respBytes := MarshallResponse(response)

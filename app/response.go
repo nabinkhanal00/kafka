@@ -35,12 +35,31 @@ type Response struct {
 	Header      ResponseHeader `desc:"response_header"`
 	Body        ResponseBody   `desc:"data"`
 }
-type APIVersionsResponseV3 struct {
-	ErrorCode int16 `desc:"error_code"`
+type APIVersionsResponseV4 struct {
+	ErrorCode      int16    `desc:"error_code"`
+	APIKeys        []APIKey `desc:"api_keys"`
+	ThrottleTimeMS int32    `desc:"throttle_time_ms"`
+}
+type APIKey struct {
+	Key          int16        `desc:"api_key"`
+	MinVersion   int16        `desc:"min_version"`
+	MaxVersion   int16        `desc:"max_version"`
+	TaggedFields TaggedFields `desc:"_tagged_fields"`
 }
 
-func (r *APIVersionsResponseV3) Write(w io.Writer) error {
-	return binary.Write(w, binary.BigEndian, r.ErrorCode)
+func (r *APIVersionsResponseV4) Write(w io.Writer) error {
+	if err := binary.Write(w, binary.BigEndian, r.ErrorCode); err != nil {
+		return err
+	}
+	binary.Write(w, binary.BigEndian, int8(len(r.APIKeys)))
+	for _, apikey := range r.APIKeys {
+		binary.Write(w, binary.BigEndian, apikey.Key)
+		binary.Write(w, binary.BigEndian, apikey.MinVersion)
+		binary.Write(w, binary.BigEndian, apikey.MaxVersion)
+		apikey.TaggedFields.Write(w)
+	}
+	binary.Write(w, binary.BigEndian, r.ThrottleTimeMS)
+	return nil
 }
 
 func MarshallResponse(r Response) []byte {

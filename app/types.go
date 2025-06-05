@@ -11,6 +11,30 @@ type NullableString struct {
 	Length int16
 	Data   string
 }
+type CompactString struct {
+	Length uint64
+	Data   string
+}
+
+func ParseCompactString(r *bytes.Reader) (*CompactString, error) {
+	var length uint64
+	var err error
+	if length, err = binary.ReadUvarint(r); err != nil {
+		return nil, fmt.Errorf("unable to read compact string length: %w", err)
+	}
+	cs := CompactString{Length: length}
+	length -= 1
+	if length != 0 {
+		characters := make([]byte, length)
+		if n, err := io.ReadFull(r, characters); err != nil {
+			return nil, fmt.Errorf("unable to read compact string data: %w", err)
+		} else if n != int(length) {
+			return nil, fmt.Errorf("invalid number of characters: expected %d, got %d", length, n)
+		}
+		cs.Data = string(characters)
+	}
+	return &cs, nil
+}
 
 func ParseNullableString(r *bytes.Reader) (*NullableString, error) {
 	var length int16
@@ -36,6 +60,19 @@ func (ns *NullableString) Write(w io.Writer) error {
 	}
 	if ns.Length > 0 {
 		_, err := w.Write([]byte(ns.Data))
+		return err
+	}
+	return nil
+}
+func (cs *CompactString) Write(w io.Writer) error {
+	buf := [binary.MaxVarintLen64]byte{}
+	n := binary.PutUvarint(buf[:], cs.Length)
+	_, err := w.Write(buf[:n])
+	if err != nil {
+		return err
+	}
+	if cs.Length > 0 {
+		_, err := w.Write([]byte(cs.Data))
 		return err
 	}
 	return nil
