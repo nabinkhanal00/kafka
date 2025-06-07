@@ -5,6 +5,8 @@ import (
 	"net"
 	"os"
 
+	kafka "github.com/nabinkhanal00/kafka/app"
+	responses "github.com/nabinkhanal00/kafka/app/responses"
 	"github.com/sirupsen/logrus"
 )
 
@@ -44,27 +46,27 @@ func handleConnection(c net.Conn) {
 		}
 		log.Infof("Read %d bytes from %s", n, c.RemoteAddr().String())
 
-		request, err := UnmarshallRequest(buffer[:n])
+		request, err := kafka.UnmarshallRequest(buffer[:n])
 		if err != nil {
 			log.Errorf("Failed to parse request: %v", err)
 			return
 		}
-		rh, ok := request.Header.(*RequestHeaderV2)
+		rh, ok := request.Header.(*kafka.RequestHeaderV2)
 		if !ok {
 			log.Errorf("Invalid request header type")
 			return
 		}
-		errorCode := NONE
+		errorCode := kafka.NONE
 		if rh.RequestAPIVersion < 0 || rh.RequestAPIVersion > 4 {
-			errorCode = UNSUPPORTED_VERSION
+			errorCode = kafka.UNSUPPORTED_VERSION
 		}
-		response := Response{
-			Header: &ResponseHeaderV0{
+		response := kafka.Response{
+			Header: &kafka.ResponseHeaderV0{
 				CorrelationID: rh.CorrelationID,
 			},
-			Body: &APIVersionsResponseV4{
+			Body: &responses.APIVersionsResponseV4{
 				ErrorCode: errorCode,
-				APIKeys: []APIKey{
+				APIKeys: []responses.APIKey{
 					{
 						Key:        18,
 						MaxVersion: 4,
@@ -78,7 +80,7 @@ func handleConnection(c net.Conn) {
 				},
 			},
 		}
-		respBytes := MarshallResponse(response)
+		respBytes := kafka.MarshallResponse(response)
 		n, err = conn.Write(respBytes)
 		if err != nil {
 			log.Errorf("Could not write to %s: %v", c.RemoteAddr().String(), err)

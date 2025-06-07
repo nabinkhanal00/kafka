@@ -1,10 +1,13 @@
-package main
+package app
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
+
+	"github.com/nabinkhanal00/kafka/app/requests"
+	"github.com/nabinkhanal00/kafka/app/types"
 )
 
 type RequestHeader interface {
@@ -15,11 +18,11 @@ type RequestBody interface {
 }
 
 type RequestHeaderV2 struct {
-	RequestAPIKey     int16          `desc:"request_api_key"`
-	RequestAPIVersion int16          `desc:"request_api_version"`
-	CorrelationID     int32          `desc:"correlation_id"`
-	ClientID          NullableString `desc:"client_id"`
-	TaggedFields      TaggedFields   `desc:"_tagged_fields"`
+	RequestAPIKey     int16                `desc:"request_api_key"`
+	RequestAPIVersion int16                `desc:"request_api_version"`
+	CorrelationID     int32                `desc:"correlation_id"`
+	ClientID          types.NullableString `desc:"client_id"`
+	TaggedFields      types.TaggedFields   `desc:"_tagged_fields"`
 }
 
 func (rh *RequestHeaderV2) Write(w io.Writer) error {
@@ -53,12 +56,12 @@ func ParseRequestHeaderV2(r *bytes.Reader) (*RequestHeaderV2, error) {
 	if err := binary.Read(r, binary.BigEndian, &rh.CorrelationID); err != nil {
 		return nil, fmt.Errorf("cannot read correlation id: %w", err)
 	}
-	ci, err := ParseNullableString(r)
+	ci, err := types.ParseNullableString(r)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse nullable string: %w", err)
 	}
 	rh.ClientID = *ci
-	tfs, err := ParseTaggedFields(r)
+	tfs, err := types.ParseTaggedFields(r)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse tagged fields: %w", err)
 	}
@@ -80,43 +83,6 @@ func MarshallRequest(r Request) []byte {
 	return buf.Bytes()
 }
 
-type APIVersionsRequestV4 struct {
-	ClientSoftwareName    CompactString `desc:"client_software_name"`
-	ClientSoftwareVersion CompactString `desc:"client_software_version"`
-	TaggedFields          TaggedFields  `desc:"_tagged_fields"`
-}
-
-func (r *APIVersionsRequestV4) Write(w io.Writer) error {
-	if err := r.ClientSoftwareName.Write(w); err != nil {
-		return err
-	}
-	if err := r.ClientSoftwareVersion.Write(w); err != nil {
-		return err
-	}
-	return r.TaggedFields.Write(w)
-}
-func ParseAPIVersionsRequestV4(r *bytes.Reader) (*APIVersionsRequestV4, error) {
-	clientSoftwareName, err := ParseCompactString(r)
-	if err != nil {
-		return nil, err
-	}
-	clientSoftwareVersion, err := ParseCompactString(r)
-	if err != nil {
-		return nil, err
-	}
-	taggedFields, err := ParseTaggedFields(r)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &APIVersionsRequestV4{
-		ClientSoftwareName:    *clientSoftwareName,
-		ClientSoftwareVersion: *clientSoftwareVersion,
-		TaggedFields:          *taggedFields,
-	}, nil
-}
-
 func UnmarshallRequest(b []byte) (Request, error) {
 	buf := bytes.NewReader(b)
 	var req Request
@@ -133,5 +99,5 @@ func UnmarshallRequest(b []byte) (Request, error) {
 }
 
 func ParseRequestBody(r *bytes.Reader) (RequestBody, error) {
-	return ParseAPIVersionsRequestV4(r)
+	return requests.ParseAPIVersionsRequestV4(r)
 }

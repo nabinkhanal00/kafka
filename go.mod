@@ -1,6 +1,6 @@
-module github.com/codecrafters-io/kafka-starter-go
+module github.com/nabinkhanal00/kafka
 
-go 1.24.0
+go 1.24.3
 
 require github.com/sirupsen/logrus v1.9.3
 
