@@ -19,6 +19,7 @@ func main() {
 		log.Warnln("Failed to bind to port 9092")
 		os.Exit(1)
 	}
+	log.Infof("Listening on %s\n", l.Addr().String())
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -67,6 +68,11 @@ func handleConnection(c net.Conn) {
 					{
 						Key:        18,
 						MaxVersion: 4,
+						MinVersion: 0,
+					},
+					{
+						Key:        75,
+						MaxVersion: 0,
 						MinVersion: 0,
 					},
 				},
