@@ -7,7 +7,7 @@ import (
 	"github.com/nabinkhanal00/kafka/app/types"
 )
 
-type APIVersionsResponseV4 struct {
+type APIVersionsV4 struct {
 	ErrorCode      int16              `desc:"error_code"`
 	APIKeys        []APIKey           `desc:"api_keys"`
 	ThrottleTimeMS int32              `desc:"throttle_time_ms"`
@@ -20,7 +20,7 @@ type APIKey struct {
 	TaggedFields types.TaggedFields `desc:"_tagged_fields"`
 }
 
-func (r *APIVersionsResponseV4) Write(w io.Writer) error {
+func (r *APIVersionsV4) Write(w io.Writer) error {
 	if err := binary.Write(w, binary.BigEndian, r.ErrorCode); err != nil {
 		return err
 	}

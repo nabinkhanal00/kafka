@@ -12,6 +12,7 @@ import (
 
 type RequestHeader interface {
 	Write(io.Writer) error
+	GetAPIKey() int16
 }
 type RequestBody interface {
 	Write(io.Writer) error
@@ -23,6 +24,10 @@ type RequestHeaderV2 struct {
 	CorrelationID     int32                `desc:"correlation_id"`
 	ClientID          types.NullableString `desc:"client_id"`
 	TaggedFields      types.TaggedFields   `desc:"_tagged_fields"`
+}
+
+func (rh *RequestHeaderV2) GetAPIKey() int16 {
+	return rh.RequestAPIKey
 }
 
 func (rh *RequestHeaderV2) Write(w io.Writer) error {
@@ -94,10 +99,17 @@ func UnmarshallRequest(b []byte) (Request, error) {
 		return req, err
 	}
 	req.Header = header
-	req.Body, err = ParseRequestBody(buf)
+	req.Body, err = ParseRequestBody(header, buf)
 	return req, err
 }
 
-func ParseRequestBody(r *bytes.Reader) (RequestBody, error) {
-	return requests.ParseAPIVersionsRequestV4(r)
+func ParseRequestBody(h RequestHeader, r *bytes.Reader) (RequestBody, error) {
+	switch h.GetAPIKey() {
+	case ApiVersions:
+		return requests.ParseAPIVersionsV4(r)
+	case DescribeTopicPartitions:
+		return requests.ParseDescribeTopicPartitionsV0(r)
+	default:
+		return nil, nil
+	}
 }

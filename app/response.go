@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
+
+	"github.com/nabinkhanal00/kafka/app/types"
 )
 
 type ResponseHeader interface {
@@ -18,13 +20,19 @@ type ResponseHeaderV0 struct {
 }
 
 func (rh *ResponseHeaderV0) Write(w io.Writer) error {
-	var buf bytes.Buffer
-	binary.Write(&buf, binary.BigEndian, rh.CorrelationID)
-	_, err := w.Write(buf.Bytes())
-	return err
+	return binary.Write(w, binary.BigEndian, rh.CorrelationID)
 }
 
 type ResponseHeaderV1 struct {
+	CorrelationID int32              `desc:"correlation_id"`
+	TaggedFields  types.TaggedFields `desc:"_tagged_fields"`
+}
+
+func (rh *ResponseHeaderV1) Write(w io.Writer) error {
+	if err := binary.Write(w, binary.BigEndian, rh.CorrelationID); err != nil {
+		return err
+	}
+	return rh.TaggedFields.Write(w)
 }
 
 type ResponseHeaderV2 struct {
